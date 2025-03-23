@@ -4,7 +4,9 @@ import {
     useMaterialReactTable,
     type MRT_ColumnDef,
 } from 'material-react-table';
-import { Button, CircularProgress, Alert, IconButton, Box } from '@mui/material';
+import {
+    Button, CircularProgress, Alert, IconButton, Box
+} from '@mui/material';
 import { Delete, Edit } from '@mui/icons-material';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import axios from 'axios';
@@ -31,13 +33,13 @@ const ConfigTable = () => {
     const [openForm, setOpenForm] = useState(false);
     const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
     const [selectedConfig, setSelectedConfig] = useState<ConfigResponse | null>(null);
-    const [selectedRows, setSelectedRows] = useState<Set<number>>(new Set()); // Store selected IDs
+    const [selectedRows, setSelectedRows] = useState<Set<number>>(new Set());
 
     // Fetch Configurations
     const { data, isLoading, isError } = useQuery({
         queryKey: ['configEmail'],
         queryFn: async () => {
-            const res = await axios.get('http://103.86.50.71:30700/api/config-email/list');
+            const res = await axios.get('https://sdh.briaservices.com/api/config-email/list');
             return res.data;
         },
     });
@@ -45,7 +47,7 @@ const ConfigTable = () => {
     // Delete Mutation
     const deleteMutation = useMutation({
         mutationFn: async (id: number) => {
-            await axios.delete(`http://103.86.50.71:30700/api/config-email/delete/${id}`);
+            await axios.delete(`https://sdh.briaservices.com/api/config-email/delete/${id}`);
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['configEmail'] });
@@ -53,12 +55,12 @@ const ConfigTable = () => {
         },
     });
 
-    // Update Status Mutation (Loop for multiple requests)
+    // Update Status Mutation
     const updateStatusMutation = useMutation({
         mutationFn: async (status: string) => {
             await Promise.all(
                 Array.from(selectedRows).map(async (id) => {
-                    await axios.put(`http://103.86.50.71:30700/api/config-email/update/status/${id}`, null, {
+                    await axios.put(`https://sdh.briaservices.com/api/config-email/update/status/${id}`, null, {
                         params: { status },
                     });
                 })
@@ -66,9 +68,29 @@ const ConfigTable = () => {
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['configEmail'] });
-            setSelectedRows(new Set()); // Clear selection
+            setSelectedRows(new Set());
         },
     });
+
+    // Export Report Function
+    const handleExport = async () => {
+        try {
+            const response = await axios.get('https://sdh.briaservices.com/api/report/download', {
+                responseType: 'blob',
+            });
+
+            const url = window.URL.createObjectURL(new Blob([response.data]));
+            const link = document.createElement('a');
+            link.href = url;
+            link.setAttribute('download', 'hospital_report.xlsx');
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+        } catch (error) {
+            console.error('Failed to download report:', error);
+            alert('Failed to download report. Please try again.');
+        }
+    };
 
     const handleDelete = () => {
         if (selectedConfig) {
@@ -76,93 +98,79 @@ const ConfigTable = () => {
         }
     };
 
-    // Function to handle "Select All" checkbox
     const handleSelectAll = () => {
         if (data) {
             if (selectedRows.size === data.length) {
-                setSelectedRows(new Set()); // Deselect all
+                setSelectedRows(new Set());
             } else {
-                setSelectedRows(new Set(data.map((row: ConfigResponse) => row.id))); // Select all
+                setSelectedRows(new Set(data.map((row: ConfigResponse) => row.id)));
             }
         }
     };
 
     // Define Columns
-    const columns = useMemo<MRT_ColumnDef<ConfigResponse>[]>(
-        () => [
-            {
-                id: 'select',
-                header: 'Select', // Must be a string, but we override using muiTableHeadCellProps
-                muiTableHeadCellProps: {
-                    align: 'center',
-                },
-                muiTableBodyCellProps: {
-                    align: 'center',
-                },
-                Cell: ({ row }) => (
-                    <input
-                        type="checkbox"
-                        checked={selectedRows.has(row.original.id)}
-                        onChange={() => {
-                            const newSelection = new Set(selectedRows);
-                            if (newSelection.has(row.original.id)) {
-                                newSelection.delete(row.original.id);
-                            } else {
-                                newSelection.add(row.original.id);
-                            }
-                            setSelectedRows(newSelection);
-                        }}
-                    />
-                ),
-                Header: () => (
-                    <input
-                        type="checkbox"
-                        checked={data && selectedRows.size === data.length}
-                        onChange={handleSelectAll}
-                    />
-                ),
-            },
-            { accessorKey: 'configName', header: 'Config Name' },
-            { accessorKey: 'type', header: 'Type' },
-            { accessorKey: 'status', header: 'Status' },
-            { accessorKey: 'sendTo', header: 'Send To' },
-            { accessorKey: 'path', header: 'Path' },
-            {
-                header: 'Actions',
-                Cell: ({ row }) => (
-                    <>
-                        <IconButton onClick={() => {
-                            setEditData(row.original);
-                            setOpenForm(true);
-                        }}>
-                            <Edit color="primary" />
-                        </IconButton>
-                        <IconButton onClick={() => {
-                            setSelectedConfig(row.original);
-                            setOpenDeleteDialog(true);
-                        }}>
-                            <Delete color="error" />
-                        </IconButton>
-                    </>
-                ),
-            },
-        ],
-        [selectedRows, data]
-    );
-    
+    const columns = useMemo<MRT_ColumnDef<ConfigResponse>[]>(() => [
+        {
+            id: 'select',
+            header: 'Select',
+            muiTableHeadCellProps: { align: 'center' },
+            muiTableBodyCellProps: { align: 'center' },
+            Cell: ({ row }) => (
+                <input
+                    type="checkbox"
+                    checked={selectedRows.has(row.original.id)}
+                    onChange={() => {
+                        const newSelection = new Set(selectedRows);
+                        if (newSelection.has(row.original.id)) {
+                            newSelection.delete(row.original.id);
+                        } else {
+                            newSelection.add(row.original.id);
+                        }
+                        setSelectedRows(newSelection);
+                    }}
+                />
+            ),
+            Header: () => (
+                <input
+                    type="checkbox"
+                    checked={data && selectedRows.size === data.length}
+                    onChange={handleSelectAll}
+                />
+            ),
+        },
+        { accessorKey: 'configName', header: 'Config Name' },
+        { accessorKey: 'type', header: 'Type' },
+        { accessorKey: 'status', header: 'Status' },
+        { accessorKey: 'sendTo', header: 'Send To' },
+        { accessorKey: 'path', header: 'Path' },
+        {
+            header: 'Actions',
+            Cell: ({ row }) => (
+                <>
+                    <IconButton onClick={() => {
+                        setEditData(row.original);
+                        setOpenForm(true);
+                    }}>
+                        <Edit color="primary" />
+                    </IconButton>
+                    <IconButton onClick={() => {
+                        setSelectedConfig(row.original);
+                        setOpenDeleteDialog(true);
+                    }}>
+                        <Delete color="error" />
+                    </IconButton>
+                </>
+            ),
+        },
+    ], [selectedRows, data]);
 
     const table = useMaterialReactTable({
         columns,
         data: data ?? [],
         state: { isLoading, showAlertBanner: isError },
-    
-        // 🔹 Force density to "compact"
         initialState: { density: 'compact' },
-    
-        // 🔹 Disable the density toggle menu
-        enableDensityToggle: false, 
+        enableDensityToggle: false,
     });
-    
 
     if (isLoading) return <CircularProgress />;
     if (isError) return <Alert severity="error">Failed to load config email data</Alert>;
@@ -189,12 +197,28 @@ const ConfigTable = () => {
                 >
                     Stop Selected
                 </Button>
+                <Button
+                    variant="outlined"
+                    color="success"
+                    onClick={handleExport}
+                >
+                    Export Report
+                </Button>
             </Box>
 
             <MaterialReactTable table={table} />
-            
-            {openForm && <ConfigFormDialog open={openForm} onClose={() => setOpenForm(false)} editData={editData} />}
-            
+
+            {openForm && (
+                <ConfigFormDialog
+                    open={openForm}
+                    onClose={() => {
+                        setOpenForm(false);
+                        setEditData(null);
+                    }}
+                    editData={editData}
+                />
+            )}
+
             <DeleteConfirmDialog
                 open={openDeleteDialog}
                 onClose={() => setOpenDeleteDialog(false)}
