@@ -6,15 +6,33 @@ type DeleteConfirmDialogProps = {
     onClose: () => void;
     onConfirm: () => void;
     configName?: string;
+    selectedCount?: number; // Add this for multi-select
 };
 
-const DeleteConfirmDialog: React.FC<DeleteConfirmDialogProps> = ({ open, onClose, onConfirm, configName }) => {
+const DeleteConfirmDialog: React.FC<DeleteConfirmDialogProps> = ({
+    open,
+    onClose,
+    onConfirm,
+    configName,
+    selectedCount = 0,
+}) => {
+    const isBulkDelete = selectedCount > 1;
+
     return (
         <Dialog open={open} onClose={onClose}>
             <DialogTitle>Confirm Deletion</DialogTitle>
             <DialogContent>
                 <Typography>
-                    Are you sure you want to delete <b>{configName}</b>? This action cannot be undone.
+                    {isBulkDelete ? (
+                        <>
+                            Are you sure you want to delete <b>{selectedCount}</b> selected items?
+                        </>
+                    ) : (
+                        <>
+                            Are you sure you want to delete <b>{configName}</b>?
+                        </>
+                    )}{' '}
+                    This action cannot be undone.
                 </Typography>
             </DialogContent>
             <DialogActions>

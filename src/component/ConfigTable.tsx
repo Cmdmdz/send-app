@@ -32,6 +32,7 @@ const ConfigTable = () => {
     const [editData, setEditData] = useState<ConfigResponse | null>(null);
     const [openForm, setOpenForm] = useState(false);
     const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
+    const [openBulkDeleteDialog, setOpenBulkDeleteDialog] = useState(false);
     const [selectedConfig, setSelectedConfig] = useState<ConfigResponse | null>(null);
     const [selectedRows, setSelectedRows] = useState<Set<number>>(new Set());
 
@@ -44,7 +45,7 @@ const ConfigTable = () => {
         },
     });
 
-    // Delete Mutation
+    // Single Delete Mutation
     const deleteMutation = useMutation({
         mutationFn: async (id: number) => {
             await axios.delete(`https://sdh.briaservices.com/api/config-email/delete/${id}`);
@@ -52,6 +53,22 @@ const ConfigTable = () => {
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['configEmail'] });
             setOpenDeleteDialog(false);
+        },
+    });
+
+    // Bulk Delete Mutation
+    const bulkDeleteMutation = useMutation({
+        mutationFn: async () => {
+            await Promise.all(
+                Array.from(selectedRows).map(async (id) => {
+                    await axios.delete(`https://sdh.briaservices.com/api/config-email/delete/${id}`);
+                })
+            );
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['configEmail'] });
+            setSelectedRows(new Set());
+            setOpenBulkDeleteDialog(false);
         },
     });
 
@@ -198,6 +215,14 @@ const ConfigTable = () => {
                     Stop Selected
                 </Button>
                 <Button
+                    variant="contained"
+                    color="error"
+                    disabled={selectedRows.size === 0}
+                    onClick={() => setOpenBulkDeleteDialog(true)}
+                >
+                    Delete Selected
+                </Button>
+                <Button
                     variant="outlined"
                     color="success"
                     onClick={handleExport}
@@ -219,11 +244,20 @@ const ConfigTable = () => {
                 />
             )}
 
+            {/* Single Delete Dialog */}
             <DeleteConfirmDialog
                 open={openDeleteDialog}
                 onClose={() => setOpenDeleteDialog(false)}
                 onConfirm={handleDelete}
                 configName={selectedConfig?.configName}
+            />
+
+            {/* Bulk Delete Dialog */}
+            <DeleteConfirmDialog
+                open={openBulkDeleteDialog}
+                onClose={() => setOpenBulkDeleteDialog(false)}
+                onConfirm={() => bulkDeleteMutation.mutate()}
+                selectedCount={selectedRows.size}
             />
         </>
     );

@@ -6,6 +6,7 @@ import {
 } from '@mui/material';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import axios from 'axios';
+import { log } from 'console';
 
 type ConfigFormProps = {
     open: boolean;
@@ -32,6 +33,8 @@ const ConfigFormDialog: React.FC<ConfigFormProps> = ({ open, onClose, editData }
 
     const [ccInput, setCcInput] = useState('');
     const [ccList, setCcList] = useState<string[]>([]);
+    const [apiError, setApiError] = useState(''); // <-- NEW
+    const [ccError, setCcError] = useState('');
 
     const queryClient = useQueryClient();
 
@@ -59,21 +62,36 @@ const ConfigFormDialog: React.FC<ConfigFormProps> = ({ open, onClose, editData }
             });
             setCcList([]);
         }
+
+        setApiError(''); // clear error when dialog opens
     }, [editData, reset]);
 
     const handleAddCc = () => {
         const trimmed = ccInput.trim();
         const isValidEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed);
 
-        if (isValidEmail && !ccList.includes(trimmed)) {
-            const updatedList = [...ccList, trimmed];
-            setCcList(updatedList);
-            setValue('cc', updatedList.join(','));
-            setCcInput('');
-        } else {
-            alert('Invalid or duplicate email');
+        if (!trimmed) {
+            setCcError('Please enter an email address.');
+            return;
         }
+
+        if (!isValidEmail) {
+            setCcError('Invalid email format.');
+            return;
+        }
+
+        if (ccList.includes(trimmed)) {
+            setCcError('Email already added.');
+            return;
+        }
+
+        const updatedList = [...ccList, trimmed];
+        setCcList(updatedList);
+        setValue('cc', updatedList.join(','));
+        setCcInput('');
+        setCcError(''); // clear error
     };
+
 
     const handleRemoveCc = (email: string) => {
         const updatedList = ccList.filter(e => e !== email);
@@ -84,21 +102,43 @@ const ConfigFormDialog: React.FC<ConfigFormProps> = ({ open, onClose, editData }
     const mutation = useMutation({
         mutationFn: async (data: any) => {
             if (editData) {
-                await axios.put(`https://sdh.briaservices.com/api/config-email/update/${editData.id}`, data);
+                return await axios.put(`https://sdh.briaservices.com/api/config-email/update/${editData.id}`, data);
             } else {
-                await axios.post('https://sdh.briaservices.com/api/config-email/save', data);
+                return await axios.post('https://sdh.briaservices.com/api/config-email/save', data);
             }
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['configEmail'] });
+            setApiError('');
             onClose();
+        },
+        onError: (error: any) => {
+            const message =
+                error?.response?.data?.message ||
+                error?.message ||
+                'An unexpected error occurred.';
+            setApiError(message);
         },
     });
 
+
+
+
+    const handleClose = () => {
+        setApiError('');
+        onClose();
+    };
+
     return (
-        <Dialog open={open} onClose={onClose}>
+        <Dialog open={open} onClose={handleClose}>
             <DialogTitle>{editData ? 'Edit Config' : 'Add Config'}</DialogTitle>
             <DialogContent>
+                {apiError && (
+                    <div style={{ color: 'red', marginBottom: '10px' }}>
+                        {apiError}
+                    </div>
+                )}
+
                 <form id="configForm" onSubmit={handleSubmit((data) => mutation.mutate(data))}>
                     <TextField label="Config Name" fullWidth margin="dense" {...register('configName')} required />
 
@@ -133,10 +173,16 @@ const ConfigFormDialog: React.FC<ConfigFormProps> = ({ open, onClose, editData }
                         <TextField
                             label="Add CC"
                             value={ccInput}
-                            onChange={(e) => setCcInput(e.target.value)}
+                            onChange={(e) => {
+                                setCcInput(e.target.value);
+                                if (ccError) setCcError(''); // Clear error on typing
+                            }}
                             fullWidth
                             margin="dense"
+                            error={!!ccError}
+                            helperText={ccError}
                         />
+
                         <Button variant="contained" onClick={handleAddCc} style={{ marginTop: '8px' }}>
                             Add
                         </Button>
@@ -195,7 +241,7 @@ const ConfigFormDialog: React.FC<ConfigFormProps> = ({ open, onClose, editData }
                 </form>
             </DialogContent>
             <DialogActions>
-                <Button onClick={onClose}>Cancel</Button>
+                <Button onClick={handleClose}>Cancel</Button>
                 <Button type="submit" form="configForm" variant="contained">
                     {editData ? 'Update' : 'Create'}
                 </Button>
